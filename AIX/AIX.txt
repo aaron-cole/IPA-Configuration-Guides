@@ -1,0 +1,228 @@
+With the instructions below th following is outlined and needs to be changed to your info
+
+Server - ipaserver3.ipa.org,ipaserver4.ipa.org,ipaserver.ipa.org,ipaserver2.ipa.org
+Domain - ipa.org
+REALM - ipa.org
+Domain DN - dc=ipa,dc=org
+hostname - aixclient.ipa.org
+proxy user setup before hand - uid=proxyagent,ou=profile,dc=ipa,dc=org
+proxy user pass setup before hand - !QAZ1qaz!QAZ1qaz
+
+
+
+Prerequisites 
+
+1.	Ports 80,443,389,686,88,464/tcp and 88,464/udp have to be open to all idM servers
+2.	Admin credentials for idM
+3.	Required Software
+
+a.	AIX 7.x
+-	Expansion Pack download
+i.	Global Secure Toolkit
+o	GSKit8.gskcrypt32.ppc.rte GSKit8.gskcrypt64.ppc.rte GSKit8.gskssl32.ppc.rte GSKit8.gskssl64.ppc.rte
+
+ii.	Kerberos Packages
+o	krb5.client.rte krb5.doc.en_US krb5.toolkit krb5.server.rte
+
+-	AIX BASE DVD 2
+o	Accept idsLicense, idsldap packages
+o	idsldap.clt32bit64.rte idsldap.clt64bit64.rte idsldap.cltbase64.adt idsldap.cltbase64.rte idsldap.cltjava64
+o	idsldap.clt_max_crypto32bit64.rte
+o	idsldap.clt_max_crypto64bit64.rte
+
+b.	AIX 6.x
+-	Expansion Pack download
+i.	Global Secure Toolkit
+o	GSKit8.gskcrypt32.ppc.rte GSKit8.gskcrypt64.ppc.rte GSKit8.gskssl32.ppc.rte GSKit8.gskssl64.ppc.rte
+
+ii.	Kerberos Packages
+o	krb5.client.rte krb5.doc.en_US krb5.toolkit krb5.server.rte
+o	Accept idsLicense, idsldap packages
+o	idsldap.clt32bit64.rte idsldap.clt64bit64.rte idsldap.cltbase64.adt idsldap.cltbase64.rte idsldap.cltjava64
+o	idsldap.clt_max_crypto32bit64.rte
+o	idsldap.clt_max_crypto64bit64.rte
+
+
+c.	Additional RPMS - may be found at 
+i.	Gettext (should already be installed)
+
+--From http://aixtools.net
+ii.	Openssh
+
+--From http://www.perzl.org/aix/index.php
+iii.	Sudo 
+iv.	Openldap
+v.	Openssl
+vi.	zlib
+
+
+d.	CREDITS - Documentation that assisted in this configuration
+o. http://www.freeipa.org/page/SUDO_Integration_for_AIX
+o. http://www.freeipa.org/page/ConfiguringUnixClients
+o. https://www.ibm.com/developerworks/aix/library/au-aix-active_directory_integration/
+o. http://nixys.fr/blog/?p=944
+o. https://www.ibm.com/developerworks/community/blogs/paixperiences/entry/aix_ldap_quick_n_dirty?lang=en
+o. https://mkosek.fedorapeople.org/publican_site/en-US/FreeIPA/3.4/html/FreeIPA_Guide/Configuring_an_IPA_Client_on_AIX.html
+--more to come...
+
+
+ 
+AIX 7.x / 6.x
+The only difference is that the software for AIX 6.x will all be on the Expansion pack vs AIX 7.1 which is divided into the base dvd 2 and expansion pack.  Adjust the following as need for AIX 6 expansion pack location.
+a.	Ensure hosts file is correct.  Host file entries should be IP hostname.FQDN shorthostname
+
+i.	10.10.10.101            aixclient.ipa.org   aixclient
+
+b.	Copy DVD 2 iso to server and mount with the loopmount command
+# loopmount -i /tmp/AIX_v7.1_Base_DVD_2_of_2.iso -o "-V cdrfs -o ro" -m /mnt
+
+c.	Accept the idslicense.  You must copy to another location to add execute permissions.
+# cp -r /mnt/license /tmp/
+# chmod +x /tmp/license/idsLicense
+# chmod +x /tmp/license/lapc
+# /tmp/idsLicense 
+-	Enter 1 to accept
+
+d.	Install idsldap software
+# installp -d /mnt -gaXY idsldap.clt32bit64.rte idsldap.clt64bit64.rte idsldap.cltbase64.adt idsldap.cltbase64.rte idsldap.cltjava64
+e.	Install idsldap crypt software for encryption in the following order:
+# installp -d /mnt -gaXY idsldap.clt_max_crypto32bit64.rte	
+# installp -d /mnt -gaXY idsldap.clt_max_crypto64bit64.rte
+
+f.	Umount DVD and copy expansion pack over, and unzip / untar into its own directory
+
+g.	Install global secure toolkit
+# installp -d /tmp/Expansion_Pack/ -gaXY GSKit8.gskcrypt32.ppc.rte GSKit8.gskcrypt64.ppc.rte GSKit8.gskssl32.ppc.rte GSKit8.gskssl64.ppc.rte
+
+h.	Install Kerberos software
+# installp -d /tmp/Expansion_Pack/ -gaXY krb5.client.rte krb5.doc.en_US krb5.toolkit krb5.server.rte
+
+i.	Install or update as required the additional RPMs
+rpm –ivh is to install and rpm –Uvh is to upgrade
+
+#rpm –ivh aixtools.openbsd.openssh.6.9.1.1601.aix537.rpm
+#rpm –ivh gettext
+#rpm –ivh zlib-1.2.10-1.aix5.1.ppc.rpm 
+#rpm –ivh openssl-1.0.2j-2.aix5.1.ppc.rpm 
+#rpm –ivh openldap-2.4.23-0.5.aix5.1.ppc.rpm
+#rpm –ivh sudo-1.8.19-3.aix53.rpm
+
+
+j.	Copy the IDM CA certificate to the system and adjust permissions.
+#mkdir /etc/ipa
+#chmod 755 /etc/ipa
+#mv /tmp/ca.crt /etc/ipa
+#chmod 644 /etc/ipa/ca.crt
+
+k.	Create the Keystore, add certificate and change the PW with the IPA certificate for network encryption.
+# gsk8capicmd -keydb -create -db /etc/security/ldap/ldap.kdb
+# gsk8capicmd -cert -add -db /etc/security/ldap/ldap.kdb -file /etc/ipa/ca.crt -label ipa_server_cert
+# gsk8capicmd -keydb -changepw -new_pw 3edc#EDC3edc#EDC -db /etc/security/ldap/ldap.kdb
+
+l.	Initialize the ldap client
+# mksecldap -c -h ipaserver3.ipa.org,ipaserver4.ipa.org,ipaserver.ipa.org,ipaserver2.ipa.org -a "uid=proxyagent,ou=profile,dc=ipa,dc=org" -p '!QAZ1qaz!QAZ1qaz' -d "dc=ipa,dc=org" -k "/etc/security/ldap/ldap.kdb" -w "3edc#EDC3edc#EDC" -j tls
+
+m.	Initialize the Kerberos client
+# mkkrb5clnt -c ipaserver3.ipa.org -r IPA.ORG -s ipaserver3.ipa.org -d ipa.org -i LDAP -D
+
+n.	Add the following to the /etc/krb5.conf
+# --libdefaults section—
+dns_lookup_realm = true
+dns_lookup_kdc = true
+
+#--realms section—
+Add kdcs and admin servers for each of the IDM servers
+
+#--“domain Realm”—
+Add the “non-dot domain” realm underneath the one with the “.” In front.  Basically copy the line and remove the leading “.”
+
+o.	Add the make home directory at login
+# chsec -f /etc/security/login.cfg -s usw -a mkhomeatlogin=true
+
+
+p.	Manually create the IDM entry in IDM and retrieve the keytab and copy to the server.
+
+
+q.	Put the keytab in place
+# mv /tmp/host.keytab /etc/krb5/krb5.keytab
+# chown root:sys /etc/krb5/krb5.keytab
+# chmod 700 /etc/krb5/krb5.keytab
+
+r.	Update the system authentication
+# chsec -f /etc/security/user  -s default  -a SYSTEM="KRB5LDAP OR compat"
+# chauthent -k5 –std
+
+s.	Edit /etc/netsvc.conf and add the sudoers entry in.
+# sudoers = files, ldap
+
+t.	Create /etc/ldap.conf and add the following in:
+# owned by root:sys and permission are 600
+
+--contents--
+URI ldap://ipaserver3.ipa.org ldap://ipaserver4.ipa.org ldap://ipaserver.ipa.org ldap://ipaserver2.ipa.org
+tls_cacert /etc/ipa/ca.crt
+BIND_TIMELIMIT 5
+TIMELIMIT 15
+sudoers_base ou=sudoers,dc=ipa,dc=org
+
+u.	A script to retrieve the ssh keys from IDM is if you are to use public keys.
+
+v.	Since a newer version of ssh was installed all configuration files are in /var/openssh/etc/.  The following entry needs to be added to /var/openssh/etc/sshd_config:
+
+# AuthorizedKeysCommand /var/openssh/etc/ssh-ldap-wrapper
+# AuthorizedKeysCommandUser root
+
+w.	/etc/hosts.allow, /var/openssh/etc/sshd_config “authorizedgroups” may need to be adjusted to allow login.
+
+ 
+ISSUES
+
+•	When adding client the following error happens:
+Kerberos authentication failed
+kinit: Clock skew too great while getting initial credentials
+o	Time on client is outside of 5 mins on the idM servers.  Point to correct ntp servers.
+•	Start ldap service
+o	/usr/sbin/start-secldapclntd
+
+
+
+
+SSH sample script
+#!/usr/bin/sh
+##########################################################
+# /var/openssh/etc/ssh-ldap-wrapper
+##########################################################
+
+#Exit if there is not an argument
+#argument = username
+if [ -z $1 ]; then
+	exit 2
+fi
+
+#Variables
+userdn="uid=proxyagent,ou=profile,dc=ipa,dc=org"
+userpass='!QAZ1qaz!QAZ1qaz'
+basedn="dc=ipa,dc=org"
+server="$(/usr/bin/nslookup -type=SRV _ldap._tcp.ipa.org | grep "^_ldap" | awk '{ print $7}' | sed s/.$// | sed -n 1p)"
+uid="$1"
+gid="$(lsuser -R LDAP -a pgrp $1 | cut -f 2 -d "=")"
+homedir="$(lsuser -R LDAP -a home $1 | cut -f 2 -d "=")"
+##########################################################
+#Do not change below this
+##########################################################
+#Exit on bad usernames
+if ! expr "$uid" : '[a-zA-Z0-9._-]*$' 1>/dev/null; then
+# Debug only
+#	echo "ssh-ldap-wrapper err "bad characters in username: $uid" >> /var/adm/ssh-ldap-wrapper.log
+	exit 2
+fi
+
+#Make homedir if doesn't exist
+if [ ! -d $homedir ]; then
+ umask 077
+ mkdir $homedir
+ chown -R $uid:$gid $homedir
+fi
+
+keys="$(/usr/bin/ldapsearch -b $basedn -B -x -h $server -D $userdn -w $userpass "(&(uid=$uid)(ipaSshPubKey=*))" 'ipaSshPubKey' | grep ipaSshPubKey | cut -c 14- )"
+echo "$keys"
